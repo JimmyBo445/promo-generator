@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Promo Visual Generator (Story Mode)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.jsdelivr.net/npm/konva@9.2.0/konva.min.js"></script>
+  <style>
+    body {
+      background: #111;
+      color: white;
+      font-family: sans-serif;
+      padding: 1em;
+    }
+    label, input, textarea, select {
+      display: block;
+      width: 100%;
+      margin-top: 0.5em;
+      font-size: 1em;
+      padding: 0.5em;
+      border-radius: 5px;
+    }
+    button {
+      margin-top: 1em;
+      padding: 1em;
+      width: 100%;
+      background: #e91e63;
+      color: white;
+      font-weight: bold;
+      border: none;
+      font-size: 1.1em;
+      border-radius: 5px;
+    }
+    .char-block {
+      border: 1px solid #444;
+      padding: 0.5em;
+      margin-top: 1em;
+      border-radius: 8px;
+    }
+    .line-box {
+      display: flex;
+      gap: 0.5em;
+      align-items: center;
+    }
+    #stage-container {
+      margin-top: 2em;
+      border: 2px solid white;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎥 Promo Visual Generator</h1>
+
+  <label>Select Background</label>
+  <select id="background">
+    <option value="https://i.postimg.cc/yYbWj9W9/3112-B9-F9-319-B-4449-9828-A4-F0-DEBAA386.jpg">Arena</option>
+    <option value="https://i.postimg.cc/28ZfpB2n/C84-A7-E86-A97-E-49-DF-A464-5-A6-AA8-A935-A2.png">Locker Room</option>
+    <option value="https://i.postimg.cc/TPrrBQWB/2943-BAED-3-D46-4-F9-E-9-F49-B535-ED55-D6-A7.png">Backstage</option>
+    <option value="https://i.postimg.cc/Th8F2CCg/44-AAA42-C-41-E7-454-E-BCA5-001855941756.png">Catering</option>
+    <option value="https://i.postimg.cc/FKtyPw1j/IMG-6109.jpg">GM Office</option>
+  </select>
+
+  <label><input type="checkbox" id="animateToggle"> 🎬 Play as Animation</label>
+
+  <label>Story Animation</label>
+  <select id="storyMode">
+    <option value="none">None</option>
+    <option value="knockout">Knockout</option>
+    <option value="heel">Heel Turn</option>
+    <option value="rescue">Rescue</option>
+    <option value="backstab">Backstab</option>
+  </select>
+
+  <div id="uploads"></div>
+
+  <button onclick="addCharacter()">➕ Add Character</button>
+  <button onclick="generateScene()">🎨 Generate Scene</button>
+  <button onclick="downloadImage()">💾 Download Image</button>
+
+  <div id="stage-container">
+    <div id="container"></div>
+  </div>
+
+  <script>
+    const MAX_CHARACTERS = 6;
+    let charCount = 0;
+    let stage, layer;
+    const imageNodes = [];
+    const bubbleGroups = [];
+
+    function addCharacter() {
+      if (charCount >= MAX_CHARACTERS) return;
+      const id = charCount++;
+      const uploads = document.getElementById("uploads");
+      uploads.innerHTML += `
+        <div class="char-block" id="charBlock${id}">
+          <label>Character ${id + 1} Image</label>
+          <input type="file" id="charimg${id}" accept="image/*">
+          <label>Character ${id + 1} Lines</label>
+          <div id="lines${id}">
+            <div class="line-box">
+              <textarea rows="2" id="chartext${id}_0" placeholder="Promo line..."></textarea>
+            </div>
+          </div>
+          <button onclick="addLine(${id})">➕ Add Line</button>
+          <button onclick="rotateImage(${id})">🔄 Rotate Character ${id + 1}</button>
+        </div>
+      `;
+    }
+
+    function addLine(id) {
+      const linesDiv = document.getElementById(`lines${id}`);
+      const lineCount = linesDiv.children.length;
+      const newLine = document.createElement('div');
+      newLine.classList.add("line-box");
+      newLine.innerHTML = `<textarea rows="2" id="chartext${id}_${lineCount}" placeholder="Promo line..."></textarea>`;
+      linesDiv.appendChild(newLine);
+    }
+
+    async function generateScene() {
+      const bgURL = document.getElementById("background").value;
+      const animate = document.getElementById("animateToggle").checked;
+      const story = document.getElementById("storyMode").value;
+      const container = document.getElementById("container");
+      container.innerHTML = "";
+
+      imageNodes.length = 0;
+      bubbleGroups.length = 0;
+
+      stage = new Konva.Stage({ container: 'container', width: 800, height: 450 });
+      layer = new Konva.Layer();
+      stage.add(layer);
+
+      const bgImage = await loadImage(bgURL);
+      layer.add(new Konva.Image({ image: bgImage, width: 800, height: 450 }));
+
+      for (let i = 0; i < charCount; i++) {
+        const fileInput = document.getElementById(`charimg${i}`);
+        if (!fileInput.files[0]) continue;
+        const img = await fileToImage(fileInput.files[0]);
+
+        const konvaImage = new Konva.Image({
+          image: img,
+          x: 100 + i * 50,
+          y: 100,
+          width: 120,
+          height: 180,
+          draggable: true,
+          id: `charimg${i}`
+        });
+
+        const transformer = new Konva.Transformer({
+          nodes: [konvaImage],
+          rotateEnabled: true,
+          enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+        });
+
+        layer.add(konvaImage);
+        layer.add(transformer);
+        imageNodes[i] = konvaImage;
+
+        const lineSet = [];
+        const linesDiv = document.getElementById(`lines${i}`);
+        const totalLines = linesDiv.children.length;
+
+        for (let l = 0; l < totalLines; l++) {
+          const lineVal = document.getElementById(`chartext${i}_${l}`).value.trim();
+          if (!lineVal) continue;
+
+          const label = new Konva.Label({
+            x: konvaImage.x() + 10,
+            y: konvaImage.y() + 190 + (l * 50),
+            draggable: true,
+            opacity: animate ? 0 : 1
+          });
+
+          label.add(new Konva.Tag({
+            fill: 'white',
+            cornerRadius: 5,
+            shadowBlur: 5
+          }));
+          label.add(new Konva.Text({
+            text: lineVal,
+            fontFamily: 'Arial',
+            fontSize: 16,
+            padding: 10,
+            fill: 'black'
+          }));
+
+          lineSet.push(label);
+          layer.add(label);
+        }
+
+        bubbleGroups.push(lineSet);
+
+        konvaImage.on('dragmove', () => {
+          lineSet.forEach((label, idx) => {
+            label.position({ x: konvaImage.x() + 10, y: konvaImage.y() + 190 + (idx * 50) });
+          });
+        });
+      }
+
+      if (animate) playAnimation();
+      if (story !== "none") playStory(story);
+      layer.draw();
+    }
+
+    function playAnimation() {
+      let delay = 300;
+      bubbleGroups.forEach((group) => {
+        group.forEach((label) => {
+          setTimeout(() => {
+            label.to({ opacity: 1, duration: 0.5 });
+          }, delay);
+          delay += 600;
+        });
+      });
+    }
+
+    function playStory(mode) {
+      const attacker = imageNodes[1];
+      const victim = imageNodes[0];
+
+      if (!attacker || !victim) return;
+
+      switch (mode) {
+        case "knockout":
+          victim.to({
+            x: victim.x() + 5,
+            rotation: 10,
+            duration: 0.1,
+            onFinish: () => {
+              victim.to({
+                x: victim.x() - 10,
+                rotation: -10,
+                duration: 0.1,
+                onFinish: () => {
+                  victim.to({ opacity: 0, duration: 0.5 });
+                }
+              });
+            }
+          });
+          break;
+        case "heel":
+          attacker.to({
+            x: victim.x() + 150,
+            duration: 1,
+            onFinish: () => {
+              attacker.to({ rotation: 180, duration: 0.3 });
+              showSpeech(attacker.x(), attacker.y() + 200, "You never saw it coming.");
+            }
+          });
+          break;
+        case "rescue":
+          attacker.opacity(0);
+          attacker.x(-150);
+          attacker.to({
+            opacity: 1,
+            x: victim.x() + 130,
+            duration: 1,
+            onFinish: () => {
+              showSpeech(attacker.x(), attacker.y() + 200, "I got you.");
+            }
+          });
+          break;
+        case "backstab":
+          attacker.to({
+            x: victim.x() + 100,
+            duration: 1,
+            onFinish: () => {
+              victim.to({
+                x: victim.x() + 5,
+                rotation: 10,
+                duration: 0.1,
+                onFinish: () => {
+                  victim.to({
+                    x: victim.x() - 10,
+                    rotation: -10,
+                    duration: 0.1,
+                    onFinish: () => {
+                      victim.to({ opacity: 0, duration: 0.5 });
+                    }
+                  });
+                }
+              });
+              showSpeech(attacker.x(), attacker.y() + 200, "This is my time.");
+            }
+          });
+          break;
+      }
+    }
+
+    function showSpeech(x, y, text) {
+      const label = new Konva.Label({ x: x, y: y });
+      label.add(new Konva.Tag({ fill: 'white', cornerRadius: 5, shadowBlur: 5 }));
+      label.add(new Konva.Text({ text: text, fontFamily: 'Arial', fontSize: 16, padding: 10, fill: 'black' }));
+      layer.add(label);
+      label.to({ opacity: 1, duration: 0.5 });
+    }
+
+    function rotateImage(index) {
+      const img = imageNodes[index];
+      if (!img) return;
+      img.rotation((img.rotation() + 90) % 360);
+      layer.draw();
+    }
+
+    function downloadImage() {
+      stage.find('Transformer').forEach(t => t.visible(false));
+      layer.draw();
+      setTimeout(() => {
+        const dataURL = stage.toDataURL({ pixelRatio: 2 });
+        stage.find('Transformer').forEach(t => t.visible(true));
+        layer.draw();
+        const link = document.createElement('a');
+        link.download = 'promo-visual.png';
+        link.href = dataURL;
+        link.click();
+      }, 100);
+    }
+
+    function loadImage(url) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.src = url;
+      });
+    }
+
+    function fileToImage(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // Default characters
+    addCharacter();
+    addCharacter();
+  </script>
+</body>
+</html>
