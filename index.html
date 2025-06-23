@@ -95,6 +95,13 @@
       uploads.innerHTML += `
         <div class="char-block" id="charBlock${id}">
           <label>Character ${id + 1} Image</label>
+          <select id="charTemplate${id}">
+            <option value="">Upload Your Own</option>
+            <option value="https://i.postimg.cc/N0f6K1pF/IMG-6118.png">Roman Reigns</option>
+            <option value="https://i.postimg.cc/2jHxh9PY/Untitled-1.png">Cody Rhodes</option>
+            <option value="https://i.postimg.cc/4NLxQV1j/IMG-6119.png">Rhea Ripley</option>
+            <!-- Add up to 150 templates -->
+          </select>
           <input type="file" id="charimg${id}" accept="image/*">
           <label>Character ${id + 1} Lines</label>
           <div id="lines${id}">
@@ -117,6 +124,14 @@
       linesDiv.appendChild(newLine);
     }
 
+    async function getCharacterImage(i) {
+      const template = document.getElementById(`charTemplate${i}`).value;
+      const fileInput = document.getElementById(`charimg${i}`);
+      if (template) return loadImage(template);
+      if (fileInput.files[0]) return fileToImage(fileInput.files[0]);
+      return null;
+    }
+
     async function generateScene() {
       const bgURL = document.getElementById("background").value;
       const animate = document.getElementById("animateToggle").checked;
@@ -135,9 +150,8 @@
       layer.add(new Konva.Image({ image: bgImage, width: 800, height: 450 }));
 
       for (let i = 0; i < charCount; i++) {
-        const fileInput = document.getElementById(`charimg${i}`);
-        if (!fileInput.files[0]) continue;
-        const img = await fileToImage(fileInput.files[0]);
+        const img = await getCharacterImage(i);
+        if (!img) continue;
 
         const konvaImage = new Konva.Image({
           image: img,
@@ -207,8 +221,8 @@
 
     function playAnimation() {
       let delay = 300;
-      bubbleGroups.forEach((group) => {
-        group.forEach((label) => {
+      bubbleGroups.forEach(group => {
+        group.forEach(label => {
           setTimeout(() => {
             label.to({ opacity: 1, duration: 0.5 });
           }, delay);
@@ -220,80 +234,46 @@
     function playStory(mode) {
       const attacker = imageNodes[1];
       const victim = imageNodes[0];
-
       if (!attacker || !victim) return;
 
       switch (mode) {
         case "knockout":
-          victim.to({
-            x: victim.x() + 5,
-            rotation: 10,
-            duration: 0.1,
-            onFinish: () => {
-              victim.to({
-                x: victim.x() - 10,
-                rotation: -10,
-                duration: 0.1,
-                onFinish: () => {
-                  victim.to({ opacity: 0, duration: 0.5 });
-                }
-              });
-            }
-          });
+          victim.to({ x: victim.x() + 5, rotation: 10, duration: 0.1, onFinish: () => {
+            victim.to({ x: victim.x() - 10, rotation: -10, duration: 0.1, onFinish: () => {
+              victim.to({ opacity: 0, duration: 0.5 });
+            }});
+          }});
           break;
         case "heel":
-          attacker.to({
-            x: victim.x() + 150,
-            duration: 1,
-            onFinish: () => {
-              attacker.to({ rotation: 180, duration: 0.3 });
-              showSpeech(attacker.x(), attacker.y() + 200, "You never saw it coming.");
-            }
-          });
+          attacker.to({ x: victim.x() + 150, duration: 1, onFinish: () => {
+            attacker.to({ rotation: 180, duration: 0.3 });
+            showSpeech(attacker.x(), attacker.y() + 200, "You never saw it coming.");
+          }});
           break;
         case "rescue":
           attacker.opacity(0);
           attacker.x(-150);
-          attacker.to({
-            opacity: 1,
-            x: victim.x() + 130,
-            duration: 1,
-            onFinish: () => {
-              showSpeech(attacker.x(), attacker.y() + 200, "I got you.");
-            }
-          });
+          attacker.to({ opacity: 1, x: victim.x() + 130, duration: 1, onFinish: () => {
+            showSpeech(attacker.x(), attacker.y() + 200, "I got you.");
+          }});
           break;
         case "backstab":
-          attacker.to({
-            x: victim.x() + 100,
-            duration: 1,
-            onFinish: () => {
-              victim.to({
-                x: victim.x() + 5,
-                rotation: 10,
-                duration: 0.1,
-                onFinish: () => {
-                  victim.to({
-                    x: victim.x() - 10,
-                    rotation: -10,
-                    duration: 0.1,
-                    onFinish: () => {
-                      victim.to({ opacity: 0, duration: 0.5 });
-                    }
-                  });
-                }
-              });
-              showSpeech(attacker.x(), attacker.y() + 200, "This is my time.");
-            }
-          });
+          attacker.to({ x: victim.x() + 100, duration: 1, onFinish: () => {
+            victim.to({ x: victim.x() + 5, rotation: 10, duration: 0.1, onFinish: () => {
+              victim.to({ x: victim.x() - 10, rotation: -10, duration: 0.1, onFinish: () => {
+                victim.to({ opacity: 0, duration: 0.5 });
+              }});
+            }});
+            showSpeech(attacker.x(), attacker.y() + 200, "This is my time.");
+          }});
           break;
       }
     }
 
     function showSpeech(x, y, text) {
-      const label = new Konva.Label({ x: x, y: y });
+      const label = new Konva.Label({ x, y });
       label.add(new Konva.Tag({ fill: 'white', cornerRadius: 5, shadowBlur: 5 }));
-      label.add(new Konva.Text({ text: text, fontFamily: 'Arial', fontSize: 16, padding: 10, fill: 'black' }));
+      label.add(new Konva.Text({ text, fontFamily: 'Arial', fontSize: 16, padding: 10, fill: 'black' }));
       layer.add(label);
       label.to({ opacity: 1, duration: 0.5 });
     }
@@ -320,7 +300,7 @@
     }
 
     function loadImage(url) {
-      return new Promise((resolve) => {
+      return new Promise(resolve => {
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => resolve(img);
@@ -329,7 +309,7 @@
     }
 
     function fileToImage(file) {
-      return new Promise((resolve) => {
+      return new Promise(resolve => {
         const reader = new FileReader();
         reader.onload = e => {
           const img = new Image();
@@ -340,7 +320,6 @@
       });
     }
 
-    // Default characters
     addCharacter();
     addCharacter();
   </script>
